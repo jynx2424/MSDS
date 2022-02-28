@@ -1,0 +1,181 @@
+---
+title: "NYPD Shooting Incident Data"
+author: "T. Ridgway"
+date: "2/25/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+The purpose of this document is to analyze NYPD shooting incidents based on sex and location. I obtained my data from data.gov (<https://catalog.data.gov/dataset>).
+
+Import the data from online:
+
+```{r get_nypd_data, tidy=TRUE, tidy.opts=list(width.cutoff=59)}
+##library in tidyverse package used to wrangle and tidy data
+library(tidyverse)
+library(formatR)
+
+## Get current data
+url_in <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+```
+
+Read in the data from the file:
+
+```{r read_data, message=FALSE}
+## Read csv data file
+shooting_data <- read_csv(url_in)
+```
+
+After looking at the data, I'm going to get rid of the latitude and longitude along with any other superfluous data such as incident key, x and y coordinates, jurisdiction code, and location description, which are either empty or irrelevant to my analysis.
+
+```{r tidy_data, tidy=TRUE, tidy.opts=list(width.cutoff=59)}
+## Remove latitude, longitude, x and y coordinates, 
+shooting_data <- shooting_data %>%
+  select(-c(Latitude, Longitude, X_COORD_CD, Y_COORD_CD, INCIDENT_KEY, JURISDICTION_CODE, Lon_Lat))
+
+## Library in lubridate to change the date object type
+library(lubridate)
+
+## change date from character type to date type
+shooting_data <- shooting_data %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE))
+```
+
+Looking at the data, there are many "NA" data points. To deal with this, I will filter away the data points with the missing relevant data.
+
+```{r data_summary}
+## Summary of NYPD shooting data
+summary(shooting_data)
+```
+
+Visualizations and analysis: Initially, I wondered which borough has the most and the least number of shootings overall. So I plotted the frequency of each borough as a proportion of the total in a pie graph.
+
+Shootings by Borough
+
+```{r shootings_by_boro, tidy=TRUE, tidy.opts=list(width.cutoff=59)}
+##obtain frequency values of shootings for each borough
+shoot_bronx <- length(which(shooting_data$BORO == "BRONX"))
+shoot_brooklyn <- length(which(shooting_data$BORO == "BROOKLYN"))
+shoot_manhattan <- length(which(shooting_data$BORO == "MANHATTAN"))
+shoot_queens <- length(which(shooting_data$BORO == "QUEENS"))
+shoot_statenisland <- length(which(shooting_data$BORO == "STATEN ISLAND"))
+shoot_list <- c(shoot_bronx, shoot_brooklyn, shoot_manhattan, shoot_queens, shoot_statenisland)
+
+##calculate total number of shootings and the percentage of the total for each borough
+total_shootings <- shoot_bronx + shoot_brooklyn + shoot_manhattan + shoot_queens + shoot_statenisland
+shooting_perc <- c(round(shoot_bronx / total_shootings *100, digits = 2), round(shoot_brooklyn / total_shootings * 100, digits = 2), round(shoot_manhattan / total_shootings *100, digits = 2), round(shoot_queens / total_shootings * 100, digits = 2), round(shoot_statenisland / total_shootings * 100, digits = 2))
+
+##make labels for the pie chart
+boro_labels <- c("Bronx", "Brooklyn", "Manhattan", "Queens", "Staten Island")
+shoot_labels <- paste(boro_labels, shooting_perc)
+shoot_labels <- paste(shoot_labels, "%", sep = "")
+boro_colors <- c("goldenrod", "darkorange", "firebrick", "darkred", "gold")
+
+##plot pie chart
+pie(x = shoot_list, labels = shoot_labels, col = boro_colors, main = "Shootings by Borough")
+
+```
+
+Seeing that Brooklyn has significantly larger proportion of the shooting incidents and Staten Island has a significantly smaller proportion, I decided to see if the proportions of deaths by shootings differed from one area to another.
+
+Murders by Borough
+
+```{r murder_by_boro, tidy=TRUE, tidy.opts=list(width.cutoff=56)}
+##obtain frequency values of murders for each borough
+murder_bronx <- length(which(shooting_data$BORO == "BRONX" & shooting_data$STATISTICAL_MURDER_FLAG == TRUE))
+murder_brooklyn <- length(which(shooting_data$BORO == "BROOKLYN" & shooting_data$STATISTICAL_MURDER_FLAG == TRUE))
+murder_manhattan <- length(which(shooting_data$BORO == "MANHATTAN" & shooting_data$STATISTICAL_MURDER_FLAG == TRUE))
+murder_queens <- length(which(shooting_data$BORO == "QUEENS" & shooting_data$STATISTICAL_MURDER_FLAG == TRUE))
+murder_statenisland <- length(which(shooting_data$BORO == "STATEN ISLAND" & shooting_data$STATISTICAL_MURDER_FLAG == TRUE))
+murder_list <- c(murder_bronx, murder_brooklyn, murder_manhattan, murder_queens, murder_statenisland)
+
+
+##calculate total number of murders and the percentage of the total for each borough
+murder_total <- murder_bronx + murder_brooklyn + murder_manhattan + murder_queens + murder_statenisland
+murder_perc <- c(round(murder_bronx / murder_total *100, digits = 2), round(murder_brooklyn / murder_total * 100, digits = 2), round(murder_manhattan / murder_total *100, digits = 2), round(murder_queens / murder_total * 100, digits = 2), round(murder_statenisland / murder_total * 100, digits = 2))
+ 
+##make labels for the pie chart
+murder_labels <- paste(boro_labels, murder_perc)
+murder_labels <- paste(murder_labels, "%", sep="")
+
+##plot pie chart
+pie(x = murder_list, labels = murder_labels, col = boro_colors, main = "Murders by Borough")
+```
+
+The frequency of murders for each borough doesn't change much from the frequency of shootings. Next I plotted the percentage of male and female victims involved in shootings.
+
+```{r vic_sex_shooting, tidy=TRUE, tidy.opts=list(width.cutoff=59)}
+##filter out unknown sexes
+gendered_data <- filter(shooting_data, VIC_SEX == "M" | VIC_SEX == "F")
+
+#count number of males and females
+male <- length(which(gendered_data$VIC_SEX == "M"))
+female <- length(which(gendered_data$VIC_SEX == "F"))
+
+#labels
+total_shootings <- male + female
+sex_shoot_perc <- c(round(male / (total_shootings) *100, digits = 2), round(female / (total_shootings) * 100, digits = 2))
+sex_labels <- c("Male", "Female")
+sex_shoot_labels <- paste(sex_labels, sex_shoot_perc)
+sex_shoot_labels <- paste(sex_shoot_labels, "%", sep="")
+
+##plot gendered shootings in pie graph
+pie(x = c(male, female), sex_shoot_labels, col = c("steelblue2", "hotpink"), main = "Shooting Victims by Sex")
+```
+
+Seeing that 9/10 victims involved were male, I plotted similar graphs that showed the proportion of males and females that were murdered as a result of the shootings.
+
+```{r total_vic_sex_killed, tidy=TRUE, tidy.opts=list(width.cutoff=59)}
+##count number of males and females murdered respectively
+males_killed <- length(which(gendered_data$VIC_SEX == "M" & gendered_data$STATISTICAL_MURDER_FLAG == TRUE))
+females_killed <- length(which(gendered_data$VIC_SEX == "F" & gendered_data$STATISTICAL_MURDER_FLAG == TRUE))
+
+#labels
+total_murders <- males_killed + females_killed
+sex_murder_perc <- c(round(males_killed / (total_murders) *100, digits = 2), round(females_killed / (total_murders) * 100, digits = 2))
+sex_murder_labels <- paste(sex_labels, sex_murder_perc)
+sex_murder_labels <- paste(sex_murder_labels, "%", sep="")
+
+##Plot gendered murders in pie graph
+pie(x = c(males_killed, females_killed), sex_murder_labels, col = c("steelblue2", "hotpink"), main = "Murder Victims by Sex")
+```
+
+The proportion of men and women killed in the shootings does not differ significantly from the proportion shot. Does the proportion of men and women killed change based on borough?
+
+```{r vic_sex_killed, tidy=TRUE, tidy.opts=list(width.cutoff=59)}
+##shootings in each borough based on sex
+##male frequencies
+bronx_m <- length(which(gendered_data$VIC_SEX == "M" & gendered_data$BORO == "BRONX"))
+brooklyn_m <- length(which(gendered_data$VIC_SEX == "M" & gendered_data$BORO == "BROOKLYN"))
+manhattan_m <- length(which(gendered_data$VIC_SEX == "M" & gendered_data$BORO == "MANHATTAN"))
+queens_m <- length(which(gendered_data$VIC_SEX == "M" & gendered_data$BORO == "QUEENS"))
+statenisland_m <- length(which(gendered_data$VIC_SEX == "M" & gendered_data$BORO == "STATEN ISLAND"))
+
+#male labels
+male_murder_perc <- c(round(bronx_m / male *100, digits = 2), round(brooklyn_m / male *100, digits = 2), round(manhattan_m / male *100, digits = 2), round(queens_m / male *100, digits = 2), round(statenisland_m / male *100, digits = 2))
+male_murder_labels <- paste(boro_labels, male_murder_perc)
+male_murder_labels <- paste(male_murder_labels, "%", sep="")
+
+#male graph
+pie(x = c(bronx_m, brooklyn_m, manhattan_m, queens_m, statenisland_m), male_murder_labels, col = boro_colors, main = "Male Victims by Borough")
+
+
+##female frequencies
+bronx_f <- length(which(gendered_data$VIC_SEX == "F" & gendered_data$BORO == "BRONX"))
+brooklyn_f <- length(which(gendered_data$VIC_SEX == "F" & gendered_data$BORO == "BROOKLYN"))
+manhattan_f <- length(which(gendered_data$VIC_SEX == "F" & gendered_data$BORO == "MANHATTAN"))
+queens_f <- length(which(gendered_data$VIC_SEX == "F" & gendered_data$BORO == "QUEENS"))
+statenisland_f <- length(which(gendered_data$VIC_SEX == "F" & gendered_data$BORO == "STATEN ISLAND"))
+
+#female labels
+female_murder_perc <- c(round(bronx_f / female * 100, digits = 2), round(brooklyn_f / female * 100, digits = 2), round(manhattan_f / female * 100, digits = 2), round(queens_f / female * 100, digits = 2), round(statenisland_f / female * 100, digits = 2))
+female_murder_labels <- paste(boro_labels, female_murder_perc)
+female_murder_labels <- paste(female_murder_labels, "%", sep="")
+
+#female graph
+pie(x = c(bronx_f, brooklyn_f, manhattan_f, queens_f, statenisland_f), female_murder_labels, col = boro_colors, main = "Female Victims by Borough")
+```
+
+Evidently, the proportion of male and female murder victims does not vary greatly from the proportion of male and female shooting victims based on borough.
+
+To summarize the findings of this analysis, we have discovered that in New York City, Brooklyn has by far the highest frequency of shootings overall and Staten Island has by far the lowest frequency of shootings overall while the number of males involved in shootings (either injured or killed) outweighs the number of females 9 to 1. A future analysis of this data could compare the number of shootings with the socioeconomic climates of each borough as long as a comparison of overall population and population density by precinct, which allows for a finer-tuned analysis of location than borough. Further analysis could also provide a distinction between male and female perpetrators rather than a focus on victims such as I have here. Keep in mind though, that this data is not perfect, for example, the reported number of shootings is highly depended on the precinct standards as well as individual officers involved in the investigation. Additionally, many situations could affect the number of shootings reported such as people mistaking sounds as gun shots or accidental misfires or situations where the officers could not contact the residents to obtain an accurate account of what happened. I hope this report has enlightened you to the dangers of shootings in general but especially in the metropolitan area that is New York City.
